@@ -19,12 +19,16 @@ export class APIService{
         return axios.get(url).then(response => response.data);
         
     }
-    getProduct(actor_name) {
+    getActor(actor_name) {
         const url = `${API_URL}/actors/${actor_name}`;
         return axios.get(url).then(response => response.data);
-    }    
+    }
+    deleteActor(actor) {
+        const url = `${API_URL}/actors/${actor}`;
+        return axios.delete(url);
+    }
     deleteRole(actor,role){
-        const url = `${API_URL}/actors/${actor}/roles/${role.role_name}/${role.start_date}`;
+        const url = `${API_URL}/actors/${actor}/roles/${role.role_name}`;
         return axios.delete(url, { headers: { Authorization: `Bearer ${AuthService.getAuthToken()}` }});
 
     }
@@ -96,6 +100,14 @@ export class APIService{
         }
         const headers = {Authorization: `Bearer ${AuthService.getAuthToken()}`};
         return axios.post(url,data,{ headers: { Authorization: `Bearer ${AuthService.getAuthToken()}` }});
+    }
+    lockActor(actor){
+        const url = `${API_URL}/actors/lockactor/${actor}/`;
+        var data = {
+            actor_name: actor,
+            locked: true
+        }
+        return axios.put(url,data);
     }
     updateProduct(product){
         const url = `${API_URL}/actors/${product}`;

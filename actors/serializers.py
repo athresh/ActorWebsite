@@ -10,6 +10,7 @@ from .models import Role
 from .models import Synonym
 from .models import Wiki
 from django.core.exceptions import ObjectDoesNotExist
+from .googleknowledgegraph import GoogleKnowledgeGraph
 
 #class SynonymSerializer(serializers.ModelSerializer):
 #    synonyms = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
@@ -20,7 +21,7 @@ from django.core.exceptions import ObjectDoesNotExist
 class ActorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Actor
-        fields = ('actor_name',)
+        fields = ('actor_name','locked')
         extra_kwargs = {
             'actor_name': {'validators': []},
         }   
@@ -38,15 +39,24 @@ class ActorSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request and hasattr(request, "user"):
             user = request.user
-            user = "admin"
+            if User.objects.filter(username=user).count()==0:   #remove once user management is done
+                user = "admin"
             user = User.objects.get(username=user)
 #            actor_name = validated_data.pop('actor_name')
         actor, created = Actor.all_objects.get_or_create(**validated_data)
         if created:
-            print("here?")
+            print("creating actor")
             actor.label = CREATED
             actor.userid = user
             actor.save()
+            gkg = GoogleKnowledgeGraph()
+            query = actor.actor_name.replace("_"," ")
+            print(query.lower())
+            wikis = gkg.getUrl(query=query.lower())
+            rank=1
+            for wiki in wikis:
+                Wiki.objects.create(actor=actor,wikilink=wiki,rank=rank,label=CREATED)
+                rank+=1
         elif actor.label == DELETED:
             actor = self.update(actor,validated_data)
         return actor
@@ -56,13 +66,20 @@ class ActorSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request and hasattr(request, "user"):
             user = request.user
+            if User.objects.filter(username=user).count()==0:   #remove once user management is done
+                user = "admin"
             user = User.objects.get(username=user)
         instance.actor_name = validated_data['actor_name']
         instance.label = EDITED
         instance.userid = user
         instance.save()
         return instance
-        
+
+class ActorMinimalDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Actor
+        fields = ('actor_name','locked')
+
 class RoleSerializer(serializers.ModelSerializer):
     def validate(self, data):
         if data['start_date'] > data['end_date']:
@@ -79,11 +96,17 @@ class RoleSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request and hasattr(request, "user"):
             user = request.user
+            if User.objects.filter(username=user).count()==0:   #remove once user management is done
+                user = "admin"
             user = User.objects.get(username=user)
 #            actor_name = validated_data.pop('actor_name')
-        role, created = Actor.all_objects.get_or_create(**validated_data)
+        if Actor.all_objects.filter(actor_name=validated_data['actor'].actor_name).count()==0:
+            role = Actor.all_objects.create(**validated_data)
+            created = True
+        else:
+            role = Actor.all_objects.get(actor_name=validated_data['actor'])
+            created = False
         if created:
-            print("here?")
             role.label = CREATED
             role.userid = user
             role.save()
@@ -96,6 +119,8 @@ class RoleSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request and hasattr(request, "user"):
             user = request.user
+            if User.objects.filter(username=user).count()==0:   #remove once user management is done
+                user = "admin"
             user = User.objects.get(username=user)
         instance.actor = validated_data['actor']
         instance.label = EDITED
@@ -112,6 +137,8 @@ class SynonymSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request and hasattr(request, "user"):
             user = request.user
+            if User.objects.filter(username=user).count()==0:   #remove once user management is done
+                user = "admin"
             user = User.objects.get(username=user)
         synonym, created = Actor.all_objects.get_or_create(**validated_data)
         if created:
@@ -129,6 +156,8 @@ class SynonymSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request and hasattr(request, "user"):
             user = request.user
+            if User.objects.filter(username=user).count()==0:   #remove once user management is done
+                user = "admin"
             user = User.objects.get(username=user)
         instance.actor = validated_data['actor']
         instance.label = EDITED
@@ -178,12 +207,17 @@ class ActorDetailSerializer(serializers.ModelSerializer):
     synonyms = SynonymSerializer(many=True)
     roles = RoleSerializer(many=True)
     wikis = WikiSerializer(many=True)
+    def validate(self, data):
+        if Actor.all_objects.filter(actor_name=data['actor_name']).count()!=0:
+            if Actor.all_objects.get(actor_name=data['actor_name']).locked==True:
+                raise serializers.ValidationError("cannot update locked actor")
+        return data
 #    def __init__(self, *args, **kwargs):
 #        many = kwargs.pop('many', True)
 #        super(ActorDetailSerializer, self).__init__(many=many, *args, **kwargs)
     class Meta:
         model = Actor
-        fields = ('actor_name','roles','synonyms','wikis')
+        fields = ('actor_name','roles','synonyms','wikis','locked')
         extra_kwargs = {
             'actor_name': {
                 'validators': [],
@@ -191,7 +225,6 @@ class ActorDetailSerializer(serializers.ModelSerializer):
         }
         
     def create(self, validated_data):
-        print(validated_data)
         roles_data = validated_data.pop('roles')
         synonyms_data = validated_data.pop('synonyms')
         wikis_data = validated_data.pop('wikis')
@@ -200,7 +233,8 @@ class ActorDetailSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request and hasattr(request, "user"):        #get user
             user = request.user
-            user = "admin"
+            if User.objects.filter(username=user).count()==0:   #remove once user management is done
+                user = "admin"
             user = User.objects.get(username=user)
         actor, created = Actor.all_objects.get_or_create(actor_name = actor_name)
 #        actor_update = actor
@@ -224,8 +258,7 @@ class ActorDetailSerializer(serializers.ModelSerializer):
 #                                                           end_date = role['end_date'], userid = user,
 #                                                           label = CREATED)
             try:
-                role_old = Role.all_objects.get(actor=actor,role_name=role['role_name'],
-                                      start_date=role['start_date'])
+                role_old = Role.all_objects.get(actor=actor,role_name=role['role_name'])
             except ObjectDoesNotExist:
                 role = Role.objects.create(actor = actor, role_name = role['role_name'], 
                                                            start_date = role['start_date'], 
@@ -240,6 +273,7 @@ class ActorDetailSerializer(serializers.ModelSerializer):
 ##                                                           label = CREATED)
                     role_old.label = CREATED
                     role_old.end_date = role['end_date']
+                    role_old.start_date = role['start_date']
                     role_old.userid = user
                     role_old.save()
                     actor.roles.add(role_old)
@@ -247,6 +281,7 @@ class ActorDetailSerializer(serializers.ModelSerializer):
     #                role_id = Role.objects.get(actor=instance,role_name=role['role_name'],
     #                                  start_date=role['start_date'])
                     role_old.end_date = role['end_date']
+                    role_old.start_date = role['start_date']
                     role_old.label = EDITED
                     role_old.userid = user
                     role_old.save()

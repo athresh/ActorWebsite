@@ -12,8 +12,8 @@ urlpatterns = [
                 path('<str:pk>/',views.ActorDetail.as_view()),
 #                url(r'^<str:actor>/roles/<str:role_name>/([0-9]{4})/([0-9]{2})/([0-9]+)/$',views.ActorRoleDetail.as_view()),
 #                re_path(r'^<str:actor>/roles/<str:role_name>/(?P<date>\d{4}-\d{2}-\d{2})/$',views.ActorRoleDetail.as_view()),
-                path('<str:actor>/roles/<str:role_name>/<str:start_date>/',views.ActorRoleDetail.as_view()),
+                path('<str:actor>/roles/<str:role_name>/',views.ActorRoleDetail.as_view()),
                 path('<str:actor>/synonyms/<str:synonym>/',views.ActorSynonymDetail.as_view()),
                 path('<str:actor>/wikis/<str:wikilink>/',views.ActorWikiDetail.as_view()),
-                
+                path('lockactor/<str:pk>/',views.LockActor.as_view()),
         ]

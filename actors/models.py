@@ -72,6 +72,7 @@ class IntegerRangeField(models.IntegerField):
 class Actor(SoftDeletionModel):
     userid = models.ForeignKey(User, on_delete = models.DO_NOTHING, null = True)
     actor_name = models.CharField(max_length=100, primary_key=True, default = ' ')
+    locked = models.BooleanField(default=False,blank=True)
 #    DELETED = 'DLT'
 #    EDITED = 'EDT'
 #    CREATED = 'CRT'
@@ -92,8 +93,8 @@ class Role(SoftDeletionModel):
     userid = models.ForeignKey(User, on_delete = models.DO_NOTHING, null = True)
     actor = models.ForeignKey(Actor, related_name = 'roles', on_delete = models.CASCADE)
     role_name = models.CharField(max_length=100, null=False)
-    start_date = models.DateField()
-    end_date = models.DateField()
+    start_date = models.DateField(blank=True,null=True)
+    end_date = models.DateField(blank=True,null=True)
 #    DELETED = 'DLT'
 #    EDITED = 'EDT'
 #    CREATED = 'CRT'
@@ -106,11 +107,11 @@ class Role(SoftDeletionModel):
 #        )
 #    label = models.IntegerField(null=False, default = 1, choices=LABEL_CHOICES)
     class Meta:
-        unique_together = ('actor', 'role_name', 'start_date')
+        unique_together = ('actor', 'role_name')
         ordering = ('actor','role_name',)
     
     def __str__(self):
-        return str(self.actor) + '-' + self.role_name + '-' + str(self.start_date)
+        return str(self.actor) + '-' + self.role_name
         
 class Synonym(SoftDeletionModel):
     userid = models.ForeignKey(User, on_delete = models.DO_NOTHING, null = True)

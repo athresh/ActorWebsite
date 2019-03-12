@@ -21,6 +21,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('actors/',include('actors.urls')),
     path('upload/',views.ActorRoleSynonymWikiList.as_view()),
+    path('download/',views.Download.as_view()),
     path('actorRoles/',views.ActorAllRoleList.as_view()),
     path('actorSynonyms/',views.ActorAllSynonymList.as_view()),
     path('actorWikilinks/',views.ActorAllWikiList.as_view()),

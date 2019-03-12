@@ -14,21 +14,43 @@
     </div>
     <div class="filters">
 
-      <div class="filter">
+      <!-- <div class="filter">
         <label for="component-dropdown">Select Actor: </label>
         <dropdown id="component-dropdown" :options="actor_list" v-model="selectedActor"></dropdown>
-      </div>
-      <a class="btn btn-primary" @click="getActorDetail()">Confirm</a>
+      </div> -->
+      <!-- <div>
+        <tr v-for="(actor,index) in actor_list">
+          <th v-model="selectedActor" @click="getActorDetail()">{{actor}}</th>
+        </tr>
+      </div> -->
+      <div style="overflow: auto; height: 200px;width:150%">
+        <table class="table table-bordered table-hover">
+        <thead>
+          <tr>
+            <th>Actor</th>
+          </tr>
+        </thead>
+        <tbody id="actor_table">
+          <tr   v-for="(actor) in actor_list" @click="selectActor(actor)">
+            <th>{{actor}}</th>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+      <!-- <a class="btn btn-primary" @click="getActorDetail()">Select</a> -->
       <div class="result">
         Selected: <strong>{{ selectedActor }}</strong>
       </div>
+      <button class="btn btn-danger" @click="deleteSelectedActor()"> Delete</button>
+      <button class="btn btn-danger" @click="lockSelectedActor()"> Lock</button>
+      <small id="lockHelp" class="form-text text-muted">Lock actor once all updates are done.</small>
     </div>
   </div>
 
-  <div class="col-sm-5" style="max-width:30%;width:20%;">
+  <div class="col-sm-5" style="max-width:30%;width:23%;">
     <h1>Reference links ({{actor_detail.wikis.length}})</h1>
     <Loading :loading="loading"></Loading>
-    <table class="table table-bordered table-hover">
+    <table class="table table-bordered table-hover table-editable">
       <thead>
         <tr>
           <th>#</th>
@@ -37,7 +59,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr   v-for="(actor_wikilink,index) in actor_detail.wikis" @click="selectProduct(actor_wikilink)">
+        <tr   v-for="(actor_wikilink,index) in actor_detail.wikis">
           <th>{{index+1}}</th>
           <th style="word-break: break-all;"><a v-bind:href="actor_wikilink.wikilink">{{actor_wikilink.wikilink}}</a></th>
             <button class="btn btn-danger" @click="deleteWikilink(actor_detail.actor_name,actor_wikilink)"> X</button>
@@ -70,19 +92,20 @@
           <th>Actions</th>
         </tr>
       </thead>
-      <tbody>
-        <tr   v-for="(actor_role,index) in actor_detail.roles" @click="selectProduct(actor_role)">
+      <tbody id="role_table">
+        <tr   v-for="(actor_role,index) in actor_detail.roles">
           <th>{{index+1}}</th>
-          <th>{{actor_role.role_name}}</th>
-          <th>{{actor_role.start_date}}</th>
-          <th>{{actor_role.end_date}}</th>
-            <button class="btn btn-danger" @click="deleteRole(actor_detail.actor_name,actor_role)"> X</button>
-          </td>
+          <th v-model="actor_role.role_name" id="edit_role_name" name="edit_role_name">{{actor_role.role_name}}</th>
+          <th contenteditable>{{actor_role.start_date}}</th>
+          <th contenteditable>{{actor_role.end_date}}</th>
+          <button class="btn btn-danger" @click="deleteRole(actor_detail.actor_name,actor_role)"> X</button>
+          <a class="btn btn-primary" @click="updateRole(index)"> &#9998; </a>
         </tr>
       </tbody>
     </table>
-  
-
+    <div v-for="err in error" v-if="showError" class="alert alert-danger">
+        {{err}}
+      </div>
     <div class = "info form">
       <form id="role_form">
           <div class="form group">
@@ -93,7 +116,7 @@
           <div class="form-group">
             <label for = "start_date">Start date</label>
             <input v-model="actor_detail.roles.start_date" type="text" class="form-control" id="start_date" aria-describedby="startdateHelp" placeholder="Enter start date">
-            <small id="startdateHelp" class="form-text text-muted">Enter role's start date</small>
+            <small id="startdateHelp" class="form-text text-muted">Enter role's start date.</small>
           </div>
           <div class="form-group">
             <label for = "end_date">End date</label>
@@ -117,7 +140,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr   v-for="(actor_synonym,index) in actor_detail.synonyms" @click="selectProduct(actor_synonym)">
+        <tr   v-for="(actor_synonym,index) in actor_detail.synonyms">
           <th>{{index+1}}</th>
           <th>{{actor_synonym.synonym}}</th>
             <button class="btn btn-danger" @click="deleteSynonym(actor_detail.actor_name,actor_synonym)"> X</button>          
@@ -160,9 +183,11 @@ export default {
   },
   data() {
     return {
+      error: [],
       selectedProduct:null,
       selectedActor: null,
       selectedOption: null,
+      showError:false,
       initialActor: '',
       products: [],
       actor_list:{},
@@ -181,9 +206,14 @@ export default {
       //this.loading = true;
       apiService.getActors().then((data) => {
         this.actors = data;
+        this.showError=false;
         //console.log(this.actors.actor_detail);
         for(var key in this.actors){
             var value = this.actors[key];
+            if(Object.keys(value).length==0){
+              console.log(value)
+              break;
+            }
             for(var key2 in value){
               if(this.selectedActor==null) this.selectedActor = String(value[key2].actor_name);
               this.getActorDetail();
@@ -192,23 +222,32 @@ export default {
             }
         }
         this.loading = false;
-      },
-      function(data){
-        console.log(data);
-        document.write(1);
+      },(error)=>{
+        this.error=[];
+        this.showError=true;
+        for(var key in error.response.data){
+          this.error.push(error.response.data[key][i]);
+        }
       });
     },
     getActorDetail(){
       //this.loading = true;
+      this.showError=false;
       var current_actor = this.selectedActor;
-      apiService.getProduct(current_actor).then((data) => {
+      apiService.getActor(current_actor).then((data) => {
         this.actor_detail = data;
-        console.log(this.actor_detail.wikis);
+        for(var key in this.actor_detail.wikis){
+          this.actor_detail.wikis[key].wikilink=this.actor_detail.wikis[key].wikilink.replace(/\*/g,'/')
+        }
         this.loading = false;
-      },
-      function(data){
-        //this.products = data;
-        console.log(data);
+      },(error)=>{
+        this.error=[];
+        this.showError=true;
+        for(var key in error.response.data){
+          for(var i=0;i<error.response.data[key].length;i++){
+            this.error.push(error.response.data[key][i]);
+          }
+        }
       });
     },
     createActor(){
@@ -216,6 +255,7 @@ export default {
       console.log('create actor' + JSON.stringify(actor));
       this.creating = true;
       apiService.createActor(actor).then((result)=>{
+          this.showError=false;
           console.log(result);
           // success 
           if(result.status === 201)
@@ -227,10 +267,13 @@ export default {
                this.creating = false;
             })
       },(error)=>{
-        this.showError = true;
-            sleep(1000).then(() => {
-               this.creating = false;
-            })
+        this.error=[];
+        this.showError=true;
+        for(var key in error.response.data){
+          for(var i=0;i<error.response.data[key].length;i++){
+            this.error.push(error.response.data[key][i]);
+          }
+        }
       });
     },
 
@@ -241,24 +284,29 @@ export default {
         start_date: document.getElementById('start_date').value,
         end_date: document.getElementById('end_date').value
       };
+      console.log(role);
       this.creating = true;
       apiService.createRole(actor,role).then((result)=>{
+          this.showError=false;
           console.log(result);
           // success 
           if(result.status === 201)
         {
-          alert("Role added");
-          this.$router.go()
+          this.getActorDetail();
         }
             sleep(1000).then(() => {
                this.creating = false;
             })          
       },(error)=>{
-        console.log("role create error")
+        this.error=[]
         this.showError = true;
-            sleep(1000).then(() => {
-               this.creating = false;
-            })
+        for(var key in error.response.data){
+          this.error.push(error.response.data[key]);
+          // for(var i=0;i<error.response.data[key].length;i++){
+          //   console.log(Array.isArray(error.response.data[key]));
+          //   this.error.push(error.response.data[key][i]);
+          // }
+        }
       });
     },
     createSynonym(){
@@ -270,46 +318,62 @@ export default {
       console.log('create product' + JSON.stringify(synonym));
       this.creating = true;
       apiService.createSynonym(actor,synonym).then((result)=>{
-          // success 
+          // success
+          this.showError=false
           if(result.status === 201)
         {
-          alert("Synonym added");
-          this.$router.go()
+          this.getActorDetail();
         }
             sleep(1000).then(() => {
                this.creating = false;
             })          
       },(error)=>{
-        this.showError = true;
-            sleep(1000).then(() => {
-               this.creating = false;
-            })
+        this.error=[]
+        this.showError=true
+        for(var key in error.response.data){
+          for(var i=0;i<error.response.data[key].length;i++){
+            this.error.push(error.response.data[key][i]);
+          }
+        }
       });
     },
     createWikilink(){
       var actor = this.selectedActor;
       var wikilink_value = document.getElementById('wikilink').value;
+      wikilink_value = wikilink_value.replace(/\//g,'*');
       var wikilink = {
         wikilink: wikilink_value,
       };
       console.log('create wikilink' + JSON.stringify(wikilink));
       this.creating = true;
       apiService.createWikilink(actor,wikilink).then((result)=>{
+        this.showError=false
           // success 
           if(result.status === 201)
         {
-          alert("Reference link added");
-          this.$router.go()
+          this.getActorDetail();
         }
             sleep(1000).then(() => {
                this.creating = false;
             })          
       },(error)=>{
-        this.showError = true;
-            sleep(1000).then(() => {
-               this.creating = false;
-            })
+        this.error=[]
+        this.showError=true
+        for(var key in error.response.data){
+          for(var i=0;i<error.response.data[key].length;i++){
+            this.error.push(error.response.data[key][i]);
+          }
+        }
       });
+    },
+    deleteSelectedActor(){
+      var actor = this.selectedActor;
+      apiService.deleteActor(actor).then((r)=>{
+        if(r.status===204){
+          alert("Actor "+actor+" deleted");
+          this.$router.go()
+        }
+      })
     },
     deleteRole(actor,role){
       console.log("deleting product: " + JSON.stringify(role))
@@ -317,8 +381,7 @@ export default {
         console.log(r);
         if(r.status === 204)
         {
-          alert("Role deleted");
-          this.$router.go()
+          this.getActorDetail();
           
         }
       })
@@ -328,26 +391,69 @@ export default {
       apiService.deleteSynonym(actor,synonym).then((r)=>{
         if(r.status === 204)
         {
-          alert("Synonym deleted");
-          this.$router.go()
+          this.getActorDetail();
           
         }
       })
     },
     deleteWikilink(actor,wikilink){
+      wikilink.wikilink = wikilink.wikilink.replace(/\//g,'*')
+      console.log(wikilink)
       console.log("deleting wikilink: " + JSON.stringify(synonym))
       apiService.deleteWikilink(actor,wikilink).then((r)=>{
         console.log(r);
         if(r.status === 204)
         {
-          alert("Wikilink deleted");
-          this.$router.go()
-          
+          tthis.getActorDetail();
         }
       })
     },
-    selectProduct(product){
-      this.selectedProduct = product;
+    updateRole(index){
+      var actor = this.selectedActor;
+      console.log(document.getElementById('role_table').rows[index].cells[3].innerHTML);
+      var role = {
+        role_name : document.getElementById('role_table').rows[index].cells[1].innerHTML,
+        start_date : document.getElementById('role_table').rows[index].cells[2].innerHTML,
+        end_date : document.getElementById('role_table').rows[index].cells[3].innerHTML
+      }
+      console.log(role);
+      this.creating = true;
+      apiService.createRole(actor,role).then((result)=>{
+          console.log(result);
+          // success 
+          if(result.status === 201)
+        {
+          this.getActorDetail();
+        }
+            sleep(1000).then(() => {
+               this.creating = false;
+            })          
+      },(error)=>{
+        console.log("role update error")
+        this.showError = true;
+            sleep(1000).then(() => {
+               this.creating = false;
+            })
+      });
+    },
+    lockSelectedActor(){
+      var actor = this.selectedActor;
+      apiService.lockActor(actor).then((result)=>{
+        if(result.status===200){
+          alert("Actor "+this.selectedActor+" locked");
+          this.$router.go();
+        }
+      },(error)=>{
+        console.log("actor lock error")
+        this.showError = true;
+            sleep(1000).then(() => {
+               this.creating = false;
+            })
+      });
+    },
+    selectActor(actor){
+      this.selectedActor = actor;
+      this.getActorDetail();
     },
     test(){
       console.log("this is a test");
@@ -389,7 +495,9 @@ export default {
 .filter {
   text-align: left;
 }
-
+.btn-danger{
+  margin: 5px;
+}
 .result {
   margin-top: 10px;
   text-align: left;

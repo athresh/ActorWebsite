@@ -21,6 +21,7 @@ from .serializers import ActorWikiSerializer
 from .serializers import RoleSerializer
 from .serializers import SynonymSerializer
 from .serializers import WikiSerializer
+from .serializers import ActorMinimalDetailSerializer
 #from .serializers import ActorAllSerializer
 # Create your views here.
 
@@ -40,7 +41,7 @@ class ActorList(generics.ListCreateAPIView):
     queryset = Actor.objects.all()
     serializer_class = ActorSerializer
     def get(self,request,**kwargs):
-        actors = Actor.objects.all()
+        actors = Actor.objects.filter(locked=False)
         serializer = ActorSerializer(actors,many=True)
         #actor_list = Actor.objects.all()
         return Response({'data':serializer.data})
@@ -56,6 +57,8 @@ class ActorDetail(generics.RetrieveUpdateDestroyAPIView):
         user = None
         if request and hasattr(request, "user"):
             user = request.user
+            if User.objects.filter(username=user).count()==0:   #remove once user management is done
+                user = "admin"
             user = User.objects.get(username=user)
         instance._on_delete(user)
         return super(ActorDetail, self).destroy(request,*args,**kwargs)
@@ -112,11 +115,11 @@ class ActorAllWikiDetail(generics.RetrieveAPIView):
     queryset = Actor.objects.all()
     serializer_class = ActorWikiSerializer
     
-# actors/<str:pk>/roles/<str:role_name/<str:start_date>/
+# actors/<str:pk>/roles/<str:role_name/
 class ActorRoleDetail(MultipleFieldLookupMixin,generics.RetrieveUpdateDestroyAPIView):
     queryset = Role.objects.all()
     serializer_class = RoleSerializer
-    lookup_fields = ('actor','role_name','start_date')
+    lookup_fields = ('actor','role_name')
     
 # actors/<str:pk>/synonyms/<int:pk>/
 class ActorSynonymDetail(MultipleFieldLookupMixin,generics.RetrieveUpdateDestroyAPIView):
@@ -143,3 +146,19 @@ class ActorWikiDetail(MultipleFieldLookupMixin,generics.RetrieveUpdateDestroyAPI
     queryset = Wiki.objects.all()
     serializer_class = WikiSerializer
     lookup_fields = ('actor','wikilink')
+
+# lockactor/<str:pk>/
+class LockActor(generics.RetrieveUpdateAPIView):
+    queryset = Actor.objects.all()
+    serializer_class = ActorMinimalDetailSerializer
+
+# download/
+class Download(generics.ListAPIView):
+    serializer_class = ActorDetailSerializer
+    def get_queryset(self):
+        return Actor.objects.filter(~Q(label=DELETED)&Q(locked=True))
+    def get_serializer(self, *args, **kwargs):
+        """ if an array is passed, set serializer to many """
+        if isinstance(kwargs.get('data', {}), list):
+            kwargs['many'] = True
+        return super(Download, self).get_serializer(*args, **kwargs)
